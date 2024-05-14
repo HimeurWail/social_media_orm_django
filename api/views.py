@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from .serializers import *
 from .models import * 
+from django.db.models import F, Count, Case, When, Value, BooleanField
+from django.db.models import Subquery, OuterRef
 
 @api_view(['POST'])
 def create_post(request):
@@ -131,3 +133,32 @@ def reply_to_comment(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+def get_recent_posts(request):
+    try:
+        # Assuming the user is authenticated and available through request.user
+        user_id = int(request.GET.get('user_id'))
+        try:
+            # Check if the post exists
+            user = CustomUser.objects.get(pk=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        followed_user_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        # Get IDs of posts liked by the current user
+        liked_posts_ids = set(PostInteraction.objects.filter(user=user, interaction_type='like').values_list('post_id', flat=True))
+        saved_posts_ids = set(PostInteraction.objects.filter(user=user, interaction_type='save').values_list('post_id', flat=True))
+
+        recent_posts = Post.objects.filter(user_id__in=followed_user_ids).order_by('-created_at')[:10]
+
+        serializer = RecentPostSerializer(recent_posts, many=True)
+        data = serializer.data
+
+        for post_data in data:
+            post_id = post_data['id']
+            post_data['is_liked'] = post_id in liked_posts_ids
+            post_data['is_saved'] = post_id in saved_posts_ids
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

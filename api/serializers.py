@@ -26,3 +26,23 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['id', 'user', 'post', 'content', 'created_at']
+
+class RecentPostSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+  
+    
+    class Meta:
+        model = Post
+        fields = '__all__'
+
+    def get_user(self, obj):
+        user = obj.user
+        return {
+            'user_id': user.id,
+            'username': user.username,
+            'full_name': user.full_name,
+            'profile_picture': user.profile_picture
+        }
+    
+    
+    
