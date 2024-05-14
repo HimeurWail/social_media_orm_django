@@ -162,3 +162,58 @@ def get_recent_posts(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+@api_view(['GET'])
+def get_post_comments(request, post_id):
+    # Get the current user
+    user_id = request.GET.get('user_id')
+    try:
+        user = CustomUser.objects.get(pk=user_id)
+    except CustomUser.DoesNotExist:
+        return Response({"error": "User does not exist"}, status=status.HTTP_404_NOT_FOUND) 
+    # Query comments and their replies for the given post
+    comments = Comment.objects.filter(post_id=post_id)
+    comments_data = []
+
+    for comment in comments:
+        comment_data = CommentSerializer(comment).data
+
+        # Annotate whether the current user has liked the comment
+        comment_data['is_liked'] = CommentInteraction.objects.filter(user=user.id,comment=comment).exists()
+
+        # Include user information
+        comment_data['user'] = {
+            'id': comment.user.id,
+            'username': comment.user.username,
+            'full_name': comment.user.full_name,
+            'profile_picture': comment.user.profile_picture,
+        }
+
+        # Include replies for each comment
+        replies = ReplyTo.objects.filter(comment_id=comment.id)
+        replies_data = []
+
+        for reply in replies:
+            reply_comment = Comment.objects.get(id=reply.comment.pk)
+            reply_data = CommentSerializer(reply_comment).data
+
+            # Annotate whether the current user has liked the reply
+            liked_comments_ids = set(CommentInteraction.objects.filter(user=user, interaction_type='like').values_list('comment_id', flat=True))
+            reply_data['is_liked'] = reply.comment.id in liked_comments_ids
+
+            # Include user information
+            # reply_data['user'] = {
+            #     'id': reply.user.id,
+            #     'username': reply.user.username,
+            #     'full_name': reply.user.full_name,
+            #     'profile_picture': reply.user.profile_picture,
+            # }
+
+            replies_data.append(reply_data)
+
+        comment_data['replies'] = replies_data
+        comments_data.append(comment_data)
+
+    return Response(comments_data, status=status.HTTP_200_OK)

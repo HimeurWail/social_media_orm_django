@@ -45,4 +45,20 @@ class RecentPostSerializer(serializers.ModelSerializer):
         }
     
     
+
+class ReplySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReplyTo
+        fields = ['id', 'user', 'content', 'created_at']
+
+    def get_user(self, obj):
+        user = obj.user
+        return {
+            'user_id': user.id,
+            'username': user.username,
+            'full_name': user.full_name,
+            'profile_picture': user.profile_picture
+        }
     
