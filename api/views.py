@@ -58,7 +58,7 @@ def comment_post(request):
     try:
 
         # Extract post_id and comment content from the request data
-        user = request.data.get('user_id')
+        user_id = request.data.get('user_id')
         post_id = request.data.get('post_id')
         content = request.data.get('content')
 
@@ -68,6 +68,12 @@ def comment_post(request):
         except Post.DoesNotExist:
             return Response({"error": "Post does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
+
+        try:
+            # Check if the post exists
+            user = CustomUser.objects.get(pk=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User does not exist"}, status=status.HTTP_404_NOT_FOUND)
         # Create a comment instance with the user and post
         comment = Comment.objects.create(
             user=user,
@@ -90,4 +96,38 @@ def comment_post(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
+@api_view(['POST'])
+def reply_to_comment(request):
+    try:
+        # Extract user instance from the request
+        user_id = request.data.get('user_id')
+
+        parent_comment_id = request.data.get('comment_id')
+        reply_content = request.data.get('content')
+
+        try:
+            # Check if the parent comment exists
+            parent_comment = Comment.objects.get(pk=parent_comment_id)
+        except Comment.DoesNotExist:
+            return Response({"error": "Parent comment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Create the reply comment
+        reply = Comment.objects.create(
+            user_id=user_id,
+            post=parent_comment.post, 
+            is_reply=True,
+            content=reply_content,
+            created_at=timezone.now()
+        )
+
+        # Link the reply comment to the parent comment
+        reply_to = ReplyTo.objects.create(parent=parent_comment, comment=reply)
+
+        # Increment the number of comments for the parent comment
+
+        return Response({"success": "Reply added successfully"}, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
